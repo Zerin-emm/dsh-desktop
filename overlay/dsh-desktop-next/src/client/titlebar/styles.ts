@@ -1,8 +1,11 @@
 /**
- * The 2.0.18 caption look: a translucent strip over the app background, content centred in it, and
- * the native Windows caption buttons left uncovered on the right.
+ * The caption's stylesheet as text, injected at runtime.
+ *
+ * Next's client build does not mount an imported `.css` file: the Loader owns styles created inside a
+ * client factory, so every Next stylesheet is a string appended to a `<style>` element. The same
+ * string form keeps the caption's rules from being emitted into the bundle and never applied.
  */
-
+export const TITLEBAR_STYLES = `
 .dshDesktopTitlebar {
   position: fixed;
   z-index: 2147483647;
@@ -13,12 +16,10 @@
   align-items: center;
   box-sizing: border-box;
   height: var(--dsh-windows-titlebar-height, 36px);
-  /* The bar shares the app background instead of painting one, so the shell's own theme shows through. */
   background: color-mix(in srgb, var(--dsw-alias-bg-base, #ffffff) 54%, transparent);
   color: var(--dsw-alias-label-primary, #202020);
   user-select: none;
   -webkit-app-region: drag;
-  /* Right padding clears the native minimise, maximise and close buttons. */
   padding: 0 146px 0 8px;
   font: 13px/1.2 system-ui, sans-serif;
 }
@@ -143,3 +144,4 @@
 .dshDesktopTitlebarPopoverAction:hover {
   background: var(--dsw-alias-interactive-bg-hover, #0000000f);
 }
+`

@@ -115,6 +115,15 @@ const EDITS = [
     replace: '"shortcutName": "DSH Desktop"',
   },
   {
+    file: 'dsh-desktop-next/src/preload-menu.ts',
+    label: 'drop the Windows caption menubar',
+    // The drawn caption occupies the same 36px, and this menubar would show through its translucent
+    // background. The preload still calls it, so it returns an inert handle instead.
+    find: /(export function installWindowsMenu\(\): \{ update\(\): void; dispose\(\): void \} \{)/u,
+    replace: $1
+  return { update: () => undefined, dispose: () => undefined },
+  },
+  {
     file: 'dsh-desktop-next/src/recovery-support.ts',
     label: 'recovery feedback link',
     find: /href: 'https:\/\/github\.com\/anywhere-labs\/dsh-desktop\/issues'/u,
