@@ -6,3 +6,7 @@
 *.ico binary
 *.jpg binary
 *.woff2 binary
+
+# Inno Setup: the editor writes CRLF and the compiler expects the same line endings
+# that its own templates use, so this file keeps them in the working tree.
+*.iss text eol=crlf
