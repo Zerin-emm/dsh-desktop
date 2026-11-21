@@ -22,9 +22,12 @@ clone tag  →  overlay/  →  scripts/rename.mjs  →  build  →  release + Pa
 
 | 路径 | 作用 |
 |---|---|
-| `overlay/` | 原样拷进上游树的文件，只含新增内容，不与上游冲突 |
-| `scripts/rename.mjs` | 13 处字符串替换，每处失败即中止构建 |
-| `.github/workflows/build.yml` | 构建、发布 release、部署 `version.json` |
+| `overlay/` | 原样拷进上游树的文件，只含新增与覆盖内容，不删上游任何东西 |
+| `scripts/rename.mjs` | 23 条正则改写，每条带匹配数断言，失配即中止构建 |
+| `installer/`、`scripts/package-inno.mjs` | 独立于上游树的 Inno Setup 打包，只读 `win-unpacked`、只写 `dist/` |
+| `scripts/check-tests.mjs` | 上游 spec 的基线差异门禁，只对基线外的失败报警 |
+| [`UPSTREAM.md`](UPSTREAM.md) | 固定的上游 tag、升级步骤、锚点失配时的排查顺序 |
+| `.github/workflows/build.yml` | 三平台构建、发布 release、部署 `version.json` |
 
 ## 改名对照
 
