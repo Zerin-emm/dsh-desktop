@@ -164,7 +164,7 @@ div:has(> [data-shell-overlay]) {
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1, #f5f5f5);
   box-shadow: 0 12px 32px color-mix(in srgb, #000 28%, transparent);
-  animation: dshDesktopCaptionIn 120ms ease;
+  /* 2.0.18 opens its action menu in place, without an entrance animation. */
   -webkit-app-region: no-drag;
 }
 
@@ -212,12 +212,16 @@ div:has(> [data-shell-overlay]) {
   box-shadow: 0 12px 32px color-mix(in srgb, #000 28%, transparent);
   color: var(--dsw-alias-label-primary, #202020);
   transform: translateX(-50%);
-  /* 2.0.18 fades and scales its hover cards in over 120ms instead of appearing at once. */
-  animation: dshDesktopCaptionIn 120ms ease;
+  /* 2.0.18 fades and scales its hover card in over 120ms instead of appearing at once. */
+  animation: dshDesktopVersionIn 120ms ease;
   -webkit-app-region: no-drag;
 }
 
-@keyframes dshDesktopCaptionIn {
+/*
+ * The centring offset belongs inside the keyframes: an animation replaces transform outright, so
+ * leaving translateX out would slide the card in from the side before it snapped to centre. Any backtick here would end the template literal.
+ */
+@keyframes dshDesktopVersionIn {
   from { opacity: 0; transform: translateX(-50%) scale(.98); }
   to { opacity: 1; transform: translateX(-50%) scale(1); }
 }

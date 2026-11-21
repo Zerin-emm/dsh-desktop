@@ -124,6 +124,40 @@ const EDITS = [
     count: 4,
   },
   {
+    file: 'dsh-desktop-next/src/client/settings.tsx',
+    label: 'drop the app-icon row import',
+    // One artwork ships now (the classic set), so the choice and its previews go with it.
+    find: /^import \{ NextAppIconSetting \} from '\.\/app-icon-setting\.tsx'\r?\n/mu,
+    replace: '',
+  },
+  {
+    file: 'dsh-desktop-next/src/client/settings.tsx',
+    label: 'drop the app-icon row',
+    find: /^[ \t]*presentationRows=\{state && <NextAppIconSetting[^\n]*\r?\n/mu,
+    replace: '',
+  },
+  {
+    file: 'dsh-desktop-next/src/native-ui/onboarding.tsx',
+    label: 'drop the unused icon imports',
+    // The choice is gone, so only the value guard and its type stay in use.
+    find: /import \{ appIconLabel, DESKTOP_APP_ICONS, isDesktopAppIcon, type DesktopAppIcon \} from '\.\.\/app-icon\.ts'/u,
+    replace: "import { isDesktopAppIcon, type DesktopAppIcon } from '../app-icon.ts'",
+  },
+  {
+    file: 'dsh-desktop-next/src/native-ui/onboarding.tsx',
+    label: 'drop the icon preview import',
+    find: /^import \{ AppIconPreview \} from '\.\.\/client\/app-icon-previews\.tsx'\r?\n/mu,
+    replace: '',
+  },
+  {
+    file: 'dsh-desktop-next/src/native-ui/onboarding.tsx',
+    label: 'drop the setup icon choice',
+    // One artwork ships, so setup has nothing to choose. The state and the completion payload keep
+    // their shape; only the visible choice goes.
+    find: /\{page === 0 && <div className="next-onboarding-option next-onboarding-reveal">\n(?:[^\n]*\n)*?[ \t]*<\/div>\}\n/u,
+    replace: '',
+  },
+  {
     file: 'dsh-desktop-next/src/preload-windows.ts',
     label: 'keep the sidebar icon rail',
     // `AppFrame` maps this marker to both the page's padding-top and `collapsedWidth = 0`. The drawn
