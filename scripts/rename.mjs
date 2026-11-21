@@ -297,12 +297,23 @@ async function applyInsert(edit) {
  * Files that keep `DSH NEXT` on purpose.
  *
  * `data-directory.ts` builds `%APPDATA%\DSH NEXT\home`; renaming it would point the build at an
- * empty directory instead of the one already in use.
+ * empty directory instead of the one already in use. The spec asserts that path, so it keeps the
+ * old name for the same reason.
  */
-const KEEP_PRODUCT_NAME = new Set(['dsh-desktop-next/src/data-directory.ts'])
+const KEEP_PRODUCT_NAME = new Set([
+  'dsh-desktop-next/src/data-directory.ts',
+  'dsh-desktop-next/tests/data-directory.spec.ts',
+])
 
-/** Source trees whose remaining product names are paths, window titles and build-time lookups. */
-const SCAN_ROOTS = ['dsh-desktop-next/src', 'dsh-desktop-next/scripts', 'dsh-plugin-desktop/src', 'dsh-plugin-desktop/scripts']
+/**
+ * Source trees whose remaining product names are paths, window titles, build-time lookups and the
+ * assertions that pin them.
+ *
+ * `tests` is in here because those assertions read the product name out of the code under test: a
+ * scan that stopped at `src` left roughly two hundred upstream names in place, and the renamed code
+ * then failed its own specs.
+ */
+const SCAN_ROOTS = ['dsh-desktop-next/src', 'dsh-desktop-next/scripts', 'dsh-desktop-next/tests', 'dsh-plugin-desktop/src', 'dsh-plugin-desktop/scripts']
 
 /** Text files that may carry the product name. */
 const TEXT_EXTENSIONS = /\.(?:ts|tsx|mjs|js|json|html|yml|yaml)$/u
