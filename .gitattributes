@@ -10,3 +10,5 @@
 # Inno Setup: the editor writes CRLF and the compiler expects the same line endings
 # that its own templates use, so this file keeps them in the working tree.
 *.iss text eol=crlf
+# Inno language files are line-oriented message tables; keep them CRLF like the script that reads them.
+*.isl text eol=crlf

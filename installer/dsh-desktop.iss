@@ -64,12 +64,20 @@ RestartApplications=no
 AllowNoIcons=yes
 
 [Languages]
-; Inno 6 自带 Chinese.isl，7 改名为 ChineseSimplified.isl，按编译器实际存在的那个选。
-#if FileExists(AddBackslash(CompilerPath) + "Languages\ChineseSimplified.isl")
-Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 官方 Inno 安装包不带中文语言文件 —— 那是我本机装的「简体中文补丁」才有的东西，CI 的
+; chocolatey 版一个都没有，所以第一次上 CI 就报 Couldn't open include file。
+; 仓库自带一份 6.5.0+ 的官方译文，按「仓库 → 编译器自带 → 英文默认」三级降级，
+; 任何环境都要能出包。
+#if FileExists(AddBackslash(SourcePath) + "ChineseSimplified.isl")
+  #define LangFile AddBackslash(SourcePath) + "ChineseSimplified.isl"
+#elif FileExists(AddBackslash(CompilerPath) + "Languages\ChineseSimplified.isl")
+  #define LangFile AddBackslash(CompilerPath) + "Languages\ChineseSimplified.isl"
+#elif FileExists(AddBackslash(CompilerPath) + "Languages\Chinese.isl")
+  #define LangFile AddBackslash(CompilerPath) + "Languages\Chinese.isl"
 #else
-Name: "chinese"; MessagesFile: "compiler:Languages\Chinese.isl"
+  #define LangFile "compiler:Default.isl"
 #endif
+Name: "chinese"; MessagesFile: "{#LangFile}"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
