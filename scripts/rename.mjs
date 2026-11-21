@@ -86,6 +86,14 @@ const EDITS = [
     count: 2,
   },
   {
+    file: 'dsh-desktop-next/src/updates.ts',
+    label: 'installer filename channel',
+    // The helper validates the version against this channel and throws when they disagree, so the
+    // third argument must name the same stream as the download above it.
+    find: /desktopUpdateFilename\(platform, result\.latestVersion, 'next'\)/u,
+    replace: "desktopUpdateFilename(platform, result.latestVersion, 'stable')",
+  },
+  {
     file: 'dsh-plugin-desktop/src/update-checker.ts',
     label: 'version endpoint',
     // A GitHub Pages file answers with { version, channel, sha256 } and no redirect. The official
@@ -120,7 +128,9 @@ const INSERTS = [
     file: 'dsh-desktop-next/src/client/index.ts',
     label: 'titlebar mount',
     after: 'export function apply(ctx: Context): void {',
-    text: "\n  ctx.effect(installDesktopTitlebar, 'Desktop titlebar overlay')",
+    // `ctx.slots.inject` is already an effect, so this is a plain call; `ctx.effect` takes a
+    // zero-argument function and would reject the context parameter.
+    text: '\n  installDesktopTitlebar(ctx)',
   },
 ]
 
