@@ -10,7 +10,7 @@
  *   <version>       the release version without the -next suffix, such as 2.0.24
  *   <owner/repo>    this repository, used for release links and the download URL
  */
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const [upstream, version, repo] = process.argv.slice(2)
@@ -115,13 +115,22 @@ const EDITS = [
     replace: '"shortcutName": "DSH Desktop"',
   },
   {
-    file: 'dsh-desktop-next/src/preload-menu.ts',
-    label: 'drop the Windows caption menubar',
-    // The drawn caption occupies the same 36px, and this menubar would show through its translucent
-    // background. The preload still calls it, so it returns an inert handle instead.
-    find: /(export function installWindowsMenu\(\): \{ update\(\): void; dispose\(\): void \} \{)/u,
-    replace: $1
-  return { update: () => undefined, dispose: () => undefined },
+    file: 'dsh-desktop-next/package.json',
+    label: 'installer artifact names',
+    // electron-builder writes the installers under these names, so the released files still said
+    // DSH-NEXT after the product itself was renamed.
+    find: /"artifactName":\s*"DSH-NEXT-/gu,
+    replace: '"artifactName": "DSH-Desktop-',
+    count: 4,
+  },
+  {
+    file: 'dsh-desktop-next/src/preload-windows.ts',
+    label: 'keep the sidebar icon rail',
+    // `AppFrame` maps this marker to both the page's padding-top and `collapsedWidth = 0`. The drawn
+    // caption reserves the strip from its own stylesheet instead, so the marker must stay unset for
+    // the 56px rail to survive collapsing. The height variable below it is kept.
+    find: /^[ \t]*root\.dataset\.windowsTitlebar = ''\r?\n/mu,
+    replace: '',
   },
   {
     file: 'dsh-desktop-next/src/recovery-support.ts',
@@ -228,9 +237,50 @@ async function applyInsert(edit) {
   console.log(`ok   ${edit.label}: ${edit.file}`)
 }
 
+/**
+ * Files that keep `DSH NEXT` on purpose.
+ *
+ * `data-directory.ts` builds `%APPDATA%\DSH NEXT\home`; renaming it would point the build at an
+ * empty directory instead of the one already in use.
+ */
+const KEEP_PRODUCT_NAME = new Set(['dsh-desktop-next/src/data-directory.ts'])
+
+/** Source trees whose remaining product names are paths, window titles and build-time lookups. */
+const SCAN_ROOTS = ['dsh-desktop-next/src', 'dsh-desktop-next/scripts', 'dsh-plugin-desktop/src', 'dsh-plugin-desktop/scripts']
+
+/** Text files that may carry the product name. */
+const TEXT_EXTENSIONS = /\.(?:ts|tsx|mjs|js|json|html|yml|yaml)$/u
+
+/**
+ * Replace every remaining product name under the scanned trees.
+ *
+ * The build scripts look the packaged executable up by name (`win-unpacked/DSH NEXT.exe`), so a rename
+ * that stopped at the copy left the packaging steps looking for a file that no longer exists.
+ */
+async function applyScanRewrite() {
+  const walk = async (relative) => {
+    const entries = await readdir(join(upstream, relative), { withFileTypes: true })
+    for (const entry of entries) {
+      const path = `${relative}/${entry.name}`
+      if (entry.isDirectory()) { await walk(path); continue }
+      if (!TEXT_EXTENSIONS.test(entry.name) || KEEP_PRODUCT_NAME.has(path)) continue
+      const before = await readFile(join(upstream, path), 'utf8')
+      // Artifact names carry `DSH-NEXT-` (hyphen, no space); the installer verifier looks the setup
+      // file up by that name, so both spellings have to move together.
+      const spaced = before.split('DSH NEXT').length - 1
+      const hyphenated = before.split('DSH-NEXT').length - 1
+      if (spaced === 0 && hyphenated === 0) continue
+      const rewritten = before.replaceAll('DSH NEXT', 'DSH Desktop').replaceAll('DSH-NEXT', 'DSH-Desktop')
+      await writeFile(join(upstream, path), rewritten)
+      console.log(`ok   remaining (${String(spaced + hyphenated)}): ${path}`)
+    }
+  }
+  for (const root of SCAN_ROOTS) await walk(root)
+}
 for (const edit of EDITS) await applyEdit(edit)
 for (const edit of INSERTS) await applyInsert(edit)
 for (const file of COPY_FILES) await applyCopyRewrite(file)
+await applyScanRewrite()
 
 if (failed) {
   console.error('\nOne or more rewrites did not match. The upstream tree changed; update scripts/rename.mjs.')

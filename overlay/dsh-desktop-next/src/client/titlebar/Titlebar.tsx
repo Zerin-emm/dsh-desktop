@@ -1,29 +1,39 @@
-/** The drawn caption: product identity centred, launcher actions on the right. */
-import { useCallback, useEffect, useState } from 'react'
+/**
+ * The drawn caption, matching the 2.0.18 frame: one terminal button, a restart menu of three
+ * entries, a developer menu of one, and the version label opening its card on hover.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Bug, RefreshCw, RotateCw, SquareTerminal, Wrench } from 'lucide-react'
 import type {} from '../../desktop-contract.ts'
+import { titlebarCopy, type TitlebarCopy } from './copy.ts'
 
-/** One launcher action, named by the command the bridge already answers. */
-interface Action {
-  readonly type: 'terminal' | 'reload' | 'devtools' | 'restart'
-  readonly zh: string
-  readonly en: string
-  /** A single glyph keeps the bar icon-free without shipping an icon component. */
-  readonly glyph: string
+/** Grace period the hover card waits before closing, as the 2.0.18 hover cards do. */
+const CLOSE_DELAY_MS = 200
+
+/** Delay before a hover card opens. */
+const OPEN_DELAY_MS = 150
+
+/** Track the document language so the caption relabels with the rest of the shell. */
+function useDocumentLanguage(): string {
+  const [language, setLanguage] = useState(() => document.documentElement.lang)
+  useEffect(() => {
+    const observer = new MutationObserver(() => { setLanguage(document.documentElement.lang) })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    return () => { observer.disconnect() }
+  }, [])
+  return language
 }
 
-const ACTIONS: readonly Action[] = [
-  { type: 'terminal', zh: '打开终端', en: 'Open terminal', glyph: '>_' },
-  { type: 'reload', zh: '重载界面', en: 'Reload renderer', glyph: '⟳' },
-  { type: 'devtools', zh: '开发者工具', en: 'Developer tools', glyph: '🛠' },
-  { type: 'restart', zh: '重启桌面', en: 'Restart Desktop', glyph: '⏻' },
-]
-
-/**
- * The document language picks the copy; every label is rendered for assistive technology only.
- * @returns the active copy selector.
- */
-function localized(zh: string, en: string): string {
-  return document.documentElement.lang.toLowerCase().startsWith('zh') ? zh : en
+/** Close a menu when the pointer leaves it or Escape is pressed. */
+function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') close() }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey) }
+  }, [open, close])
+  return ref
 }
 
 /**
@@ -34,9 +44,19 @@ function localized(zh: string, en: string): string {
  */
 export function Titlebar() {
   const bridge = typeof window === 'undefined' ? undefined : window.desktopNext
+  const copy: TitlebarCopy = titlebarCopy(useDocumentLanguage())
   const [version, setVersion] = useState('')
-  const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState<string>()
+  const [restartOpen, setRestartOpen] = useState(false)
+  const [developerOpen, setDeveloperOpen] = useState(false)
+  const [versionOpen, setVersionOpen] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [checkFailed, setCheckFailed] = useState(false)
+  const [pending, setPending] = useState(false)
+  const closeVersion = useCallback(() => { setVersionOpen(false) }, [])
+  const closeRestart = useCallback(() => { setRestartOpen(false) }, [])
+  const versionRef = useDismiss(versionOpen, closeVersion)
+  const restartRef = useDismiss(restartOpen, closeRestart)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (bridge === undefined) return
@@ -45,62 +65,143 @@ export function Titlebar() {
     return () => { active = false }
   }, [bridge])
 
-  const run = useCallback((type: Action['type']): void => {
-    if (bridge === undefined || busy !== undefined) return
-    setBusy(type)
-    setOpen(false)
-    // A rejected command leaves the shell running; the action's own UI reports the failure.
-    void bridge.command({ type } as Parameters<NonNullable<typeof bridge>['command']>[0])
-      .catch(() => undefined)
-      .finally(() => { setBusy(undefined) })
-  }, [bridge, busy])
+  useEffect(() => () => { clearTimeout(hoverTimer.current) }, [])
 
-  const checkUpdates = useCallback((): void => {
-    if (bridge === undefined) return
-    setOpen(false)
-    void bridge.command({ type: 'check-updates' }).catch(() => undefined)
-  }, [bridge])
+  const openVersion = useCallback((): void => {
+    clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => { setVersionOpen(true) }, OPEN_DELAY_MS)
+  }, [])
+
+  const closeVersionSoon = useCallback((): void => {
+    clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => { setVersionOpen(false) }, CLOSE_DELAY_MS)
+  }, [])
+
+  const run = useCallback((command: 'terminal' | 'reload' | 'restart' | 'restart-recovery' | 'devtools'): void => {
+    if (bridge === undefined || pending) return
+    setPending(true)
+    setRestartOpen(false)
+    setDeveloperOpen(false)
+    void bridge.command({ type: command })
+      .catch(() => undefined)
+      .finally(() => { setPending(false) })
+  }, [bridge, pending])
+
+  const checkForUpdates = useCallback((): void => {
+    if (bridge === undefined || checking) return
+    setChecking(true)
+    setCheckFailed(false)
+    void bridge.command({ type: 'check-updates' })
+      .catch(() => { setCheckFailed(true) })
+      .finally(() => { setChecking(false) })
+  }, [bridge, checking])
 
   if (bridge === undefined) return null
 
   return (
-    <header className="dshDesktopTitlebar" data-dsh-desktop-titlebar="">
-      <div className="dshDesktopTitlebarIdentity">
-        <span className="dshDesktopTitlebarProduct">DSH Desktop</span>
+    <header className="dshDesktopFrameTitlebar" data-platform="win32" data-dsh-desktop-titlebar="">
+      <div className="dshDesktopFrameActions">
         <button
           type="button"
-          className="dshDesktopTitlebarVersion"
-          aria-label={`${localized('当前版本', 'Current version')} v${version}`}
-          aria-expanded={open}
-          onClick={() => { setOpen(value => !value) }}
+          className="dshDesktopTitlebarIconButton"
+          aria-label={copy.terminal}
+          title={copy.terminal}
+          disabled={pending}
+          onClick={() => { run('terminal') }}
         >
-          v{version}
+          <SquareTerminal aria-hidden="true" />
         </button>
-      </div>
-      <div className="dshDesktopTitlebarActions">
-        {ACTIONS.map(action => (
+        <div className="dshDesktopCaptionMenuAnchor" ref={restartRef}>
           <button
-            key={action.type}
             type="button"
-            className="dshDesktopTitlebarAction"
-            aria-label={localized(action.zh, action.en)}
-            title={localized(action.zh, action.en)}
-            disabled={busy !== undefined}
-            onClick={() => { run(action.type) }}
+            className="dshDesktopTitlebarIconButton"
+            aria-label={copy.restartOptions}
+            aria-expanded={restartOpen}
+            aria-haspopup="menu"
+            title={copy.restartOptions}
+            disabled={pending}
+            onClick={() => { setDeveloperOpen(false); setRestartOpen(open => !open) }}
           >
-            {action.glyph}
+            <RotateCw aria-hidden="true" />
           </button>
-        ))}
-      </div>
-      {open && (
-        <div className="dshDesktopTitlebarPopover" role="dialog" aria-label={localized('版本', 'Version')}>
-          <span className="dshDesktopTitlebarPopoverLabel">{localized('当前版本', 'Current version')}</span>
-          <strong>v{version}</strong>
-          <button type="button" className="dshDesktopTitlebarPopoverAction" onClick={checkUpdates}>
-            {localized('检查更新', 'Check for updates')}
-          </button>
+          {restartOpen && (
+            <div className="dshDesktopCaptionMenu" role="menu">
+              <button type="button" role="menuitem" disabled={pending} onClick={() => { run('reload') }}>
+                <RefreshCw aria-hidden="true" />
+                <span>{copy.reloadRenderer}</span>
+              </button>
+              <button type="button" role="menuitem" disabled={pending} onClick={() => { run('restart') }}>
+                <RotateCw aria-hidden="true" />
+                <span>{copy.restartDesktop}</span>
+              </button>
+              <button type="button" role="menuitem" disabled={pending} onClick={() => { run('restart-recovery') }}>
+                <RotateCw aria-hidden="true" />
+                <span>{copy.restartToRecovery}</span>
+              </button>
+            </div>
+          )}
         </div>
-      )}
+        <div className="dshDesktopCaptionMenuAnchor">
+          <button
+            type="button"
+            className="dshDesktopTitlebarIconButton"
+            aria-label={copy.developerOptions}
+            aria-expanded={developerOpen}
+            aria-haspopup="menu"
+            title={copy.developerOptions}
+            disabled={pending}
+            onClick={() => { setRestartOpen(false); setDeveloperOpen(open => !open) }}
+          >
+            <Wrench aria-hidden="true" />
+          </button>
+          {developerOpen && (
+            <div className="dshDesktopCaptionMenu" role="menu">
+              <button type="button" role="menuitem" disabled={pending} onClick={() => { run('devtools') }}>
+                <Bug aria-hidden="true" />
+                <span>{copy.toggleDeveloperTools}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="dshDesktopFrameIdentity">
+        <span className="dshDesktopFrameProduct">{copy.product}</span>
+        <div
+          className="dshDesktopCaptionHoverAnchor"
+          ref={versionRef}
+          onMouseEnter={openVersion}
+          onMouseLeave={closeVersionSoon}
+        >
+          <button
+            type="button"
+            className="dshDesktopFrameVersion"
+            aria-label={`${copy.currentVersion} v${version}`}
+            aria-expanded={versionOpen}
+            onFocus={openVersion}
+            onBlur={closeVersionSoon}
+          >
+            v{version}
+          </button>
+          {versionOpen && (
+            <div className="dshDesktopVersionPopover" role="dialog" aria-label={copy.currentVersion}>
+              <div className="dshDesktopVersionPopoverHeader">
+                <span>{copy.currentVersion}</span>
+                <strong>v{version}</strong>
+              </div>
+              <button
+                type="button"
+                className="dshDesktopVersionCheckButton"
+                disabled={checking}
+                onClick={checkForUpdates}
+              >
+                <RefreshCw aria-hidden="true" />
+                <span>{checking ? copy.checking : copy.checkForUpdates}</span>
+              </button>
+              {checkFailed && <span className="dshDesktopVersionCheckError" role="alert">{copy.checkFailed}</span>}
+            </div>
+          )}
+        </div>
+      </div>
     </header>
   )
 }
