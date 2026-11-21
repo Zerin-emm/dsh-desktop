@@ -172,6 +172,28 @@ const EDITS = [
     find: /href: 'https:\/\/github\.com\/anywhere-labs\/dsh-desktop\/issues'/u,
     replace: `href: '${repository}/issues'`,
   },
+  {
+    file: 'dsh-desktop-next/tests/package.spec.ts',
+    label: 'package spec follows the released version',
+    // The spec pinned the upstream `-next` prerelease; this build reports the plain version.
+    find: /expect\(next\.version\)\.toBe\('2\.0\.24-next'\)/u,
+    replace: `expect(next.version).toBe('${version}')`,
+  },
+  {
+    file: 'dsh-desktop-next/tests/package.spec.ts',
+    label: 'package spec follows the application id',
+    find: /expect\(next\.build\.appId\)\.toBe\('ai\.deepseek\.dsh\.desktop\.next'\)/u,
+    replace: `expect(next.build.appId).toBe('com.${repo.split('/')[0].toLowerCase()}.dsh.desktop')`,
+  },
+  {
+    file: 'dsh-desktop-next/src/update-installer.ts',
+    label: 'windows update drives the Inno Setup installer',
+    // The application quits and shuts its Host down before this runs, so the installer only has to
+    // install. Inno shows the progress bar for /SILENT without asking anything; --updated tells the
+    // installer script to start the new version once it finishes. --force-run was NSIS-specific.
+    find: /spawn\(this\.prepared!\.path, \['--updated', '--force-run'\]/u,
+    replace: "spawn(this.prepared!.path, ['/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '--updated']",
+  },
 ]
 
 /** Edits that add a line instead of replacing one. */

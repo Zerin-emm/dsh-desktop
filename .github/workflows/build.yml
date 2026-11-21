@@ -105,21 +105,33 @@ jobs:
         shell: pwsh
         run: yarn build
 
-      - name: Package the Windows installer
+      - name: Package the application directory
         working-directory: upstream/dsh-desktop-next
         shell: pwsh
-        run: yarn dist:win
+        # Only dist\win-unpacked is needed, because the Inno Setup step below wraps that directory.
+        # The upstream NSIS target and its `yarn dist:win` entry point stay untouched; this workflow
+        # simply does not call them.
+        run: node scripts/package.ts dir
+
+      - name: Install Inno Setup
+        shell: pwsh
+        # The Windows runner image does not ship it, and the chocolatey package is the quickest route.
+        run: choco install innosetup --no-progress -y
+
+      - name: Build the Inno Setup installer
+        shell: pwsh
+        # Independent of the upstream tree: it reads dist\win-unpacked and writes the installer beside it.
+        run: node scripts/package-inno.mjs "${{ needs.resolve.outputs.version }}" "${{ github.repository }}" --desktop-root upstream/dsh-desktop-next
 
       - name: Collect the installer and describe it
         shell: pwsh
         run: |
           $version = "${{ needs.resolve.outputs.version }}"
-          $exe = Get-ChildItem -Recurse upstream/dsh-desktop-next/dist -Filter '*.exe' |
-            Where-Object { $_.Name -notmatch 'unpacked' } | Select-Object -First 1
-          if ($null -eq $exe) { throw 'No installer was produced' }
+          $exe = "upstream/dsh-desktop-next/dist/DSH-Desktop-Setup-$version-x64.exe"
+          if (-not (Test-Path $exe)) { throw 'No installer was produced' }
           New-Item -ItemType Directory -Force -Path out | Out-Null
           # A fixed asset name keeps releases/latest/download/<name> pointing at the newest build.
-          Copy-Item $exe.FullName 'out/DSH-Desktop-win-x64.exe'
+          Copy-Item $exe 'out/DSH-Desktop-win-x64.exe'
           $sha = (Get-FileHash 'out/DSH-Desktop-win-x64.exe' -Algorithm SHA256).Hash.ToLower()
           New-Item -ItemType Directory -Force -Path pages | Out-Null
           $payload = [ordered]@{
@@ -145,6 +157,110 @@ jobs:
           path: pages/
           if-no-files-found: error
 
+  build-macos:
+    name: Build macOS disk image
+    needs: resolve
+    if: needs.resolve.outputs.exists == 'false'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone upstream at the tag
+        run: git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+
+      - name: Apply the overlay
+        run: cp -R overlay/. upstream/
+
+      - name: Rewrite DSH NEXT into DSH Desktop
+        run: node scripts/rename.mjs upstream "${{ needs.resolve.outputs.version }}" "${{ github.repository }}"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install
+        working-directory: upstream
+        # The root postinstall applies patches/ to the official packages.
+        run: yarn install --immutable
+
+      - name: Build
+        working-directory: upstream/dsh-desktop-next
+        run: yarn build
+
+      - name: Package the unsigned disk image
+        working-directory: upstream/dsh-desktop-next
+        # `mac-smoke` needs no signing identity: it builds the app and the DMG, then verifies the
+        # sealed payload, the fuses and the packaged Host boot. Gatekeeper clears it after
+        # `xattr -cr /Applications/DSH\ Desktop.app`.
+        run: yarn dist:mac-smoke
+
+      - name: Collect the disk image
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          dmg="$(find upstream/dsh-desktop-next/dist -maxdepth 2 -name '*.dmg' | head -n 1)"
+          if [ -z "${dmg}" ]; then echo 'No disk image was produced' >&2; exit 1; fi
+          cp "${dmg}" out/DSH-Desktop-mac-x64.dmg
+          shasum -a 256 out/DSH-Desktop-mac-x64.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-desktop-macos
+          path: out/DSH-Desktop-mac-x64.dmg
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux packages
+    needs: resolve
+    if: needs.resolve.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone upstream at the tag
+        run: git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+
+      - name: Apply the overlay
+        run: cp -R overlay/. upstream/
+
+      - name: Rewrite DSH NEXT into DSH Desktop
+        run: node scripts/rename.mjs upstream "${{ needs.resolve.outputs.version }}" "${{ github.repository }}"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install
+        working-directory: upstream
+        # The root postinstall applies patches/ to the official packages.
+        run: yarn install --immutable
+
+      - name: Build
+        working-directory: upstream/dsh-desktop-next
+        run: yarn build
+
+      - name: Package the AppImage and the Debian package
+        working-directory: upstream/dsh-desktop-next
+        run: yarn dist:linux
+
+      - name: Collect the packages
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          appimage="$(find upstream/dsh-desktop-next/dist -maxdepth 2 -name '*.AppImage' | head -n 1)"
+          deb="$(find upstream/dsh-desktop-next/dist -maxdepth 2 -name '*.deb' | head -n 1)"
+          if [ -z "${appimage}" ]; then echo 'No AppImage was produced' >&2; exit 1; fi
+          if [ -z "${deb}" ]; then echo 'No Debian package was produced' >&2; exit 1; fi
+          cp "${appimage}" out/DSH-Desktop-linux-x86_64.AppImage
+          cp "${deb}" out/DSH-Desktop-linux-amd64.deb
+          sha256sum out/DSH-Desktop-linux-x86_64.AppImage out/DSH-Desktop-linux-amd64.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-desktop-linux
+          path: |
+            out/DSH-Desktop-linux-x86_64.AppImage
+            out/DSH-Desktop-linux-amd64.deb
+          if-no-files-found: error
+
   publish-pages:
     name: Publish the version endpoint
     needs: [resolve, build]
@@ -163,13 +279,21 @@ jobs:
 
   publish-release:
     name: Publish the release
-    needs: [resolve, build]
+    needs: [resolve, build, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: dsh-desktop
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-desktop-macos
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-desktop-linux
           path: out
 
       - name: Take the upstream notes
@@ -189,5 +313,9 @@ jobs:
           tag_name: v${{ needs.resolve.outputs.version }}
           name: DSH Desktop ${{ needs.resolve.outputs.version }}
           body_path: notes.md
-          files: out/DSH-Desktop-win-x64.exe
+          files: |
+            out/DSH-Desktop-win-x64.exe
+            out/DSH-Desktop-mac-x64.dmg
+            out/DSH-Desktop-linux-x86_64.AppImage
+            out/DSH-Desktop-linux-amd64.deb
           fail_on_unmatched_files: true
