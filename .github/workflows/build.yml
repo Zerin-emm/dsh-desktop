@@ -367,9 +367,22 @@ jobs:
           # The notes describe the upstream build this one is; only the product name differs, in both
           # spellings used across release bodies (display name and artifact name).
           sed -i 's/DSH NEXT/DSH Desktop/g; s/DSH-NEXT/DSH-Desktop/g' notes.md
-          # Upstream's own download table lists its asset names with the -next suffix; this release
-          # publishes five files under different names, so keeping that section only misleads readers.
-          awk '/^## (下载|Downloads)/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' notes.md > notes.clean
+          # Two parts of the upstream body do not apply here. The filter is written so that a body
+          # without them passes through untouched — a restructured upstream release costs nothing,
+          # because pass-through is the default:
+          #
+          #   1. its download tables (`## 下载` and `## Downloads`) name assets this repository does
+          #      not publish, so a reader would follow them to a 404;
+          #   2. `# English` and everything after it repeats the Chinese text word for word, which
+          #      only doubles the page for a reader of the Chinese block.
+          #
+          # awk exits at the English header, and skips one download section until the next heading.
+          awk '
+            /^# English[[:space:]]*$/ { exit }
+            /^##[[:space:]]*(下载|Downloads)/ { skip = 1; next }
+            skip && /^##[[:space:]]/ { skip = 0 }
+            !skip
+          ' notes.md > notes.clean
           mv notes.clean notes.md
           sed -i "s/${{ needs.resolve.outputs.version }}-next/${{ needs.resolve.outputs.version }}/g" notes.md
           cat >> notes.md <<'EOF'
