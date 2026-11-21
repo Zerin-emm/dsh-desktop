@@ -83,8 +83,15 @@ Name: "chinese"; MessagesFile: "{#LangFile}"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
 
 [Files]
-; win-unpacked 就是可运行的应用目录，原样整份打包。
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*.map"
+; win-unpacked 就是可运行的应用目录，原样整份打包 —— 一个字节都不排除。
+;
+; 这里曾经学过模板写 Excludes: "*.pdb,*.xml,*.map"：那条建议是给 .NET 项目的（xml 是 IDE 的
+; IntelliSense 文档）。但本产物是 Electron + LibreOffice，`.xml` 是 LibreOffice 的样式、注册表与
+; 配置本体，一共 249 个；而 `*.pdb` 与 `*.map` 在这里根本不存在，排除它们等于没写。
+; 删掉 .xml 会让 asar 头里 `"unpacked": true` 的条目在解包目录里找不到文件，插件做完整性校验时
+; 直接 ENOENT 并放弃换包 —— 这正是 1.7.20 在装上后的 DSH Desktop 上点「应用」失败的原因。
+; payload 已经过 electron-builder 与 verify 校验，任何额外排除都会破坏它的自洽性。
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
