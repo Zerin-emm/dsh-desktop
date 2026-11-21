@@ -1,0 +1,8 @@
+# The workflow and the scripts run in Linux containers, so line endings must stay LF whichever
+# machine checks this out.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.jpg binary
+*.woff2 binary

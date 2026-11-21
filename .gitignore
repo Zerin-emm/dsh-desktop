@@ -1,0 +1,10 @@
+# Build output and the upstream tree this workflow clones.
+upstream/
+out/
+pages/
+
+# Editors and local tooling.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

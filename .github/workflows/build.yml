@@ -1,0 +1,193 @@
+name: Build DSH Desktop
+
+# Upstream publishes DSH NEXT as `v<version>-next`. This workflow rebuilds the newest such tag as
+# DSH Desktop, and can be pointed at any tag by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Upstream tag such as v2.0.24-next (empty picks the newest)
+        required: false
+        type: string
+  schedule:
+    # 04:07 UTC is 12:07 in Beijing; upstream releases weekly, so a daily check is enough.
+    - cron: '7 4 * * *'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_REPO: anywhere-labs/dsh-desktop
+  # The builds otherwise fetch Electron and its packaging binaries from GitHub, which is slow here.
+  ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  resolve:
+    name: Resolve upstream tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      version: ${{ steps.pick.outputs.version }}
+      exists: ${{ steps.pick.outputs.exists }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${REQUESTED}" ]; then
+            tag="${REQUESTED}"
+          else
+            # `-next` tags are the released stream; `-beta.N` tags are prereleases this build skips.
+            tag="$(gh api "repos/${UPSTREAM_REPO}/releases?per_page=30" \
+              --jq '[.[] | select(.tag_name | endswith("-next"))][0].tag_name')"
+          fi
+          if [ -z "${tag}" ] || [ "${tag}" = "null" ]; then
+            echo "No upstream -next tag found" >&2
+            exit 1
+          fi
+          version="${tag#v}"
+          version="${version%-next}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          # A release that already exists means this build is complete; skip the expensive jobs.
+          if gh release view "v${version}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build Windows installer
+    needs: resolve
+    if: needs.resolve.outputs.exists == 'false'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone upstream at the tag
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" `
+            "https://github.com/${{ env.UPSTREAM_REPO }}.git" upstream
+
+      - name: Apply the overlay
+        shell: pwsh
+        run: |
+          # Only new files live here, so this never conflicts with upstream.
+          Copy-Item -Recurse -Force overlay/* upstream/
+
+      - name: Rewrite DSH NEXT into DSH Desktop
+        shell: pwsh
+        run: node scripts/rename.mjs upstream "${{ needs.resolve.outputs.version }}" "${{ github.repository }}"
+
+      - name: Enable Corepack
+        shell: pwsh
+        run: corepack enable
+
+      - name: Install
+        working-directory: upstream
+        shell: pwsh
+        # The root postinstall applies patches/ to the official packages.
+        run: yarn install --immutable
+
+      - name: Build
+        working-directory: upstream/dsh-desktop-next
+        shell: pwsh
+        run: yarn build
+
+      - name: Package the Windows installer
+        working-directory: upstream/dsh-desktop-next
+        shell: pwsh
+        run: yarn dist:win
+
+      - name: Collect the installer and describe it
+        shell: pwsh
+        run: |
+          $version = "${{ needs.resolve.outputs.version }}"
+          $exe = Get-ChildItem -Recurse upstream/dsh-desktop-next/dist -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch 'unpacked' } | Select-Object -First 1
+          if ($null -eq $exe) { throw 'No installer was produced' }
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          # A fixed asset name keeps releases/latest/download/<name> pointing at the newest build.
+          Copy-Item $exe.FullName 'out/DSH-Desktop-win-x64.exe'
+          $sha = (Get-FileHash 'out/DSH-Desktop-win-x64.exe' -Algorithm SHA256).Hash.ToLower()
+          New-Item -ItemType Directory -Force -Path pages | Out-Null
+          $payload = [ordered]@{
+            version = $version
+            channel = 'stable'
+            sha256  = [ordered]@{ windows = $sha }
+          }
+          # The updater's client parses exactly these three fields and rejects a redirect, so this
+          # file is served as a plain static document.
+          $payload | ConvertTo-Json -Compress | Set-Content -NoNewline 'pages/version.json' -Encoding utf8
+          Get-Content 'pages/version.json'
+          "VERSION=$version" | Out-File -Append -FilePath $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-desktop
+          path: out/DSH-Desktop-win-x64.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pages
+          path: pages/
+          if-no-files-found: error
+
+  publish-pages:
+    name: Publish the version endpoint
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pages
+          path: pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  publish-release:
+    name: Publish the release
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-desktop
+          path: out
+
+      - name: Take the upstream notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${UPSTREAM_REPO}/releases/tags/${{ needs.resolve.outputs.tag }}" \
+            --jq .body > notes.md || echo "" > notes.md
+          # The notes describe the upstream build this one is; only the product name differs.
+          sed -i 's/DSH NEXT/DSH Desktop/g' notes.md
+          printf '\n\n---\n\n个人构建，基于 %s。仅改动顶栏、程序名与更新源。\n' \
+            "${{ needs.resolve.outputs.tag }}" >> notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.resolve.outputs.version }}
+          name: DSH Desktop ${{ needs.resolve.outputs.version }}
+          body_path: notes.md
+          files: out/DSH-Desktop-win-x64.exe
+          fail_on_unmatched_files: true
