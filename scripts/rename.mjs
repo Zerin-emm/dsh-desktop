@@ -109,6 +109,12 @@ const EDITS = [
     replace: `win32: '${repository}/releases/latest/download/DSH-Desktop-win-x64.exe'`,
   },
   {
+    file: 'dsh-desktop-next/package.json',
+    label: 'start menu shortcut name',
+    find: /"shortcutName":\s*"DSH NEXT"/u,
+    replace: '"shortcutName": "DSH Desktop"',
+  },
+  {
     file: 'dsh-desktop-next/src/recovery-support.ts',
     label: 'recovery feedback link',
     find: /href: 'https:\/\/github\.com\/anywhere-labs\/dsh-desktop\/issues'/u,
@@ -133,6 +139,42 @@ const INSERTS = [
     text: '\n  installDesktopTitlebar(ctx)',
   },
 ]
+
+/**
+ * Files where every `DSH NEXT` is copy the user reads or a name the shell shows.
+ *
+ * `data-directory.ts` is deliberately absent: it builds `%APPDATA%\DSH NEXT\home`, and renaming it
+ * would point the build at an empty data directory instead of the one already in use.
+ */
+const COPY_FILES = [
+  'dsh-desktop-next/src/client/settings.tsx',
+  'dsh-desktop-next/src/client/updates.tsx',
+  'dsh-desktop-next/src/native-ui/main.tsx',
+  'dsh-desktop-next/src/desktop-menu.ts',
+  'dsh-desktop-next/src/failure-report.ts',
+  'dsh-desktop-next/src/app-downloads.ts',
+  'dsh-desktop-next/src/desktop-terminal/windows-shell.ts',
+  'dsh-desktop-next/src/host-startup-limit.ts',
+  // The fuse verifier looks for the packaged executable by its build product name.
+  'dsh-desktop-next/scripts/verify-fuses.ts',
+]
+
+/**
+ * Replace every product name in the visible copy.
+ * @param file - One source file carrying `DSH NEXT` as copy.
+ */
+async function applyCopyRewrite(file) {
+  const path = join(upstream, file)
+  const before = await readFile(path, 'utf8')
+  const count = before.split('DSH NEXT').length - 1
+  if (count === 0) {
+    console.error(`MISS visible copy: ${file} carries no DSH NEXT`)
+    failed = true
+    return
+  }
+  await writeFile(path, before.replaceAll('DSH NEXT', 'DSH Desktop'))
+  console.log(`ok   visible copy (${String(count)}): ${file}`)
+}
 
 let failed = false
 
@@ -179,6 +221,7 @@ async function applyInsert(edit) {
 
 for (const edit of EDITS) await applyEdit(edit)
 for (const edit of INSERTS) await applyInsert(edit)
+for (const file of COPY_FILES) await applyCopyRewrite(file)
 
 if (failed) {
   console.error('\nOne or more rewrites did not match. The upstream tree changed; update scripts/rename.mjs.')
