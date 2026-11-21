@@ -28,6 +28,15 @@ if (!/^\d+\.\d+\.\d+$/u.test(version)) {
 const pages = `https://${repo.split('/')[0]}.github.io/${repo.split('/')[1]}`
 const repository = `https://github.com/${repo}`
 
+/**
+ * Mirror placed in front of the release asset.
+ *
+ * `releases/download` from mainland China usually stalls, and the downloader accepts any settled
+ * URL that is plain HTTPS, so the installer link goes through here while the version endpoint and
+ * the release-notes links stay direct.
+ */
+const downloadMirror = 'https://v4.gh-proxy.org'
+
 /** Every rewrite, in the order the files are read. `count` is how many matches the edit must find. */
 const EDITS = [
   {
@@ -104,9 +113,10 @@ const EDITS = [
   {
     file: 'dsh-plugin-desktop/src/update-download.ts',
     label: 'windows installer url',
-    // The transport follows up to eight redirects, and a fixed asset name keeps this URL current.
+    // The transport follows up to eight redirects and only checks that the settled URL is HTTPS, so
+    // the mirror in front stays transparent. A fixed asset name keeps the link valid across versions.
     find: /win32:\s*'https:\/\/www\.dshdesktop\.cn\/api\/downloads\/windows'/u,
-    replace: `win32: '${repository}/releases/latest/download/DSH-Desktop-win-x64.exe'`,
+    replace: `win32: '${downloadMirror}/${repository}/releases/latest/download/DSH-Desktop-win-x64.exe'`,
   },
   {
     file: 'dsh-desktop-next/package.json',

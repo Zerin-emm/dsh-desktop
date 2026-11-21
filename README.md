@@ -37,6 +37,21 @@ clone tag  →  overlay/  →  scripts/rename.mjs  →  build  →  release + Pa
 | 版本号 | 上游 `2.0.24-next` → 本仓库 `2.0.24` |
 | appId | `com.<owner>.dsh.desktop` |
 
+## 发布物
+
+| 平台 | 文件 | 自动更新 |
+|---|---|---|
+| Windows | `DSH-Desktop-win-x64.exe`（Inno Setup） | **是** |
+| Windows | `DSH-Desktop-win-x64-Portable.zip`（免安装） | 否，解压即用、不写注册表 |
+| macOS | `DSH-Desktop-mac-x64.dmg`（未签名） | 否，装完执行 `xattr -cr` |
+| Linux | `DSH-Desktop-linux-x86_64.AppImage` / `-amd64.deb` | 否 |
+
+Release 正文由上游同 tag 的说明改写而来（`DSH NEXT` → `DSH Desktop`，两种拼写都换），后面追加平台
+表与安装包/便携包的区别。
+
+Windows 安装包走镜像下载：`https://v4.gh-proxy.org/https://github.com/<owner>/<repo>/releases/latest/download/DSH-Desktop-win-x64.exe`。
+更新器只要求最终落点是 HTTPS，镜像透明；`version.json` 与 release 说明链接仍直连。
+
 ## 测试
 
 上游的 `yarn test` 断言的是**上游产品的事实**：`DSH NEXT` 的对话框标题、官方更新端点的

@@ -86,8 +86,13 @@ MISS installer self-check: dsh-desktop-next/src/update-installer.ts matched 0, e
 | 项 | 上游 | 本仓库 |
 |---|---|---|
 | 版本端点 | `www.dshdesktop.cn/api/desktop/version` | 自己的 GitHub Pages `version.json` |
-| Windows 下载 | `www.dshdesktop.cn/api/downloads/windows` | `releases/latest/download/DSH-Desktop-win-x64.exe` |
+| Windows 下载 | `www.dshdesktop.cn/api/downloads/windows` | 镜像 + `releases/latest/download/DSH-Desktop-win-x64.exe` |
 | channel | `next` | `stable` |
+
+下载走 `https://v4.gh-proxy.org/` 前缀是为了绕开 `releases/download` 在国内的卡顿。更新器
+`assertSecureDownloadUrl` 只要求最终落点是 HTTPS、无 userinfo、端口 443，而镜像会 302 到
+`objects.githubusercontent.com`，同样满足；跟随重定向由 transport 负责（上限 8 跳）。
+**换镜像只要改 `rename.mjs` 里的 `downloadMirror` 一处。**
 
 `next` 只接受 `-next` 预发布版，而本仓库版本是纯 `X.Y.Z`，不改 `stable` 会直接抛
 `The update version must match the next channel`。

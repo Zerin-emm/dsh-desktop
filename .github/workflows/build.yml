@@ -112,13 +112,17 @@ jobs:
         # patch reached further than intended, or upstream changed behaviour under it.
         run: node scripts/check-tests.mjs --desktop-root upstream/dsh-desktop-next
 
-      - name: Package the application directory
+      - name: Package the portable archive and the application directory
         working-directory: upstream/dsh-desktop-next
         shell: pwsh
-        # Only dist\win-unpacked is needed, because the Inno Setup step below wraps that directory.
-        # The upstream NSIS target and its `yarn dist:win` entry point stay untouched; this workflow
-        # simply does not call them.
-        run: node scripts/package.ts dir
+        env:
+          # The build above already ran the same preflight; repeating it would build the client twice.
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+        # `dist:win-portable` produces dist\win-unpacked and the zip beside it, and runs its own
+        # verifier over both. The archive is published for people who want no installer; the updater
+        # never touches it, because the download URL names the Inno Setup file. The upstream NSIS
+        # target and its own `yarn dist:win` entry point stay untouched and uncalled.
+        run: yarn dist:win-portable
 
       - name: Install Inno Setup
         shell: pwsh
@@ -135,10 +139,13 @@ jobs:
         run: |
           $version = "${{ needs.resolve.outputs.version }}"
           $exe = "upstream/dsh-desktop-next/dist/DSH-Desktop-Setup-$version-x64.exe"
+          $zip = "upstream/dsh-desktop-next/dist/DSH-Desktop-$version-x64-Portable.zip"
           if (-not (Test-Path $exe)) { throw 'No installer was produced' }
+          if (-not (Test-Path $zip)) { throw 'No portable archive was produced' }
           New-Item -ItemType Directory -Force -Path out | Out-Null
           # A fixed asset name keeps releases/latest/download/<name> pointing at the newest build.
           Copy-Item $exe 'out/DSH-Desktop-win-x64.exe'
+          Copy-Item $zip 'out/DSH-Desktop-win-x64-Portable.zip'
           $sha = (Get-FileHash 'out/DSH-Desktop-win-x64.exe' -Algorithm SHA256).Hash.ToLower()
           New-Item -ItemType Directory -Force -Path pages | Out-Null
           $payload = [ordered]@{
@@ -155,7 +162,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dsh-desktop
-          path: out/DSH-Desktop-win-x64.exe
+          path: |
+            out/DSH-Desktop-win-x64.exe
+            out/DSH-Desktop-win-x64-Portable.zip
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
@@ -310,10 +319,26 @@ jobs:
           set -euo pipefail
           gh api "repos/${UPSTREAM_REPO}/releases/tags/${{ needs.resolve.outputs.tag }}" \
             --jq .body > notes.md || echo "" > notes.md
-          # The notes describe the upstream build this one is; only the product name differs.
-          sed -i 's/DSH NEXT/DSH Desktop/g' notes.md
-          printf '\n\n---\n\n个人构建，基于 %s。仅改动顶栏、程序名与更新源。\n' \
-            "${{ needs.resolve.outputs.tag }}" >> notes.md
+          # The notes describe the upstream build this one is; only the product name differs, in both
+          # spellings used across release bodies (display name and artifact name).
+          sed -i 's/DSH NEXT/DSH Desktop/g; s/DSH-NEXT/DSH-Desktop/g' notes.md
+          cat >> notes.md <<'EOF'
+
+          ---
+
+          **个人构建，基于 __UPSTREAM_TAG__。**
+
+          | 平台 | 文件 | 自动更新 |
+          |---|---|---|
+          | Windows | `DSH-Desktop-win-x64.exe`（Inno Setup） | 是 |
+          | Windows | `DSH-Desktop-win-x64-Portable.zip`（免安装） | 否 |
+          | macOS | `DSH-Desktop-mac-x64.dmg`（未签名，`xattr -cr` 后可用） | 否 |
+          | Linux | `.AppImage` / `.deb` | 否 |
+
+          安装包与便携包的区别：安装包注册开始菜单、桌面快捷方式与卸载项，并参与应用内更新；
+          便携包解压即用，不写注册表，更新需要手动下载新包。
+          EOF
+          sed -i "s/__UPSTREAM_TAG__/${{ needs.resolve.outputs.tag }}/" notes.md
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -322,6 +347,7 @@ jobs:
           body_path: notes.md
           files: |
             out/DSH-Desktop-win-x64.exe
+            out/DSH-Desktop-win-x64-Portable.zip
             out/DSH-Desktop-mac-x64.dmg
             out/DSH-Desktop-linux-x86_64.AppImage
             out/DSH-Desktop-linux-amd64.deb
