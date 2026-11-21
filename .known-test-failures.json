@@ -1,0 +1,32 @@
+{
+  "note": "Cases that fail by design: they assert the upstream product name, update endpoint, channel and installer switches that this build replaces. Regenerate with node scripts/check-tests.mjs --update-baseline.",
+  "failures": [
+    "tests/installed-app-icon.spec.ts::follows a package entry that changed and reads an unquoted program",
+    "tests/installed-app-icon.spec.ts::shows another icon through a marked per-user copy of the package's desktop entry, and removes it for the package's own",
+    "tests/mac-entitlements.spec.ts::inherits the pinned upstream entitlement file for the main app and all Helpers",
+    "tests/mac-runtime.spec.ts::stages the payloads of the package CPUs from the prepared tree, keeping links and modes as they are",
+    "tests/main-lifecycle.spec.ts::explains the first Windows GPU launch failure in a native dialog, records it and quits",
+    "tests/main-lifecycle.spec.ts::sends an available Linux update to its release page from the tray and Settings instead of downloading it",
+    "tests/main-lifecycle.spec.ts::sends an available update of a portable Windows copy to its release page instead of running Setup",
+    "tests/package-targets.spec.ts::macOS smoke verification checks an application-directory smoke in place without mounting an image",
+    "tests/sharp-wasm.spec.ts::loads real sharp through @img/sharp-wasm32 and encodes PNG images when platform is linux",
+    "tests/sign-runtime.spec.ts::gives only the standalone Node arm64 entitlements and signs Python without any",
+    "tests/sign-runtime.spec.ts::gives only the standalone Node x64 entitlements and signs Python without any",
+    "tests/update-installer.spec.ts::launches the Windows NSIS installer visibly without /S so progress is shown before auto-restarting",
+    "tests/update-installer.spec.ts::rejects Stable installers and an unexpected release even when the archive is valid",
+    "tests/updates.spec.ts::allows checks in development, but never downloads or replaces the development application",
+    "tests/updates.spec.ts::checks without downloading; download completion waits for an explicit installation",
+    "tests/updates.spec.ts::downloads a Next installer through the injected artifact transport",
+    "tests/updates.spec.ts::downloads into the configured directory and removes earlier downloads there and beside the update state",
+    "tests/updates.spec.ts::leaves requests without a CPU header where the platform names none",
+    "tests/updates.spec.ts::leaves the update of a portable Windows copy to the release page, but identifies its checks like any Windows build",
+    "tests/updates.spec.ts::links the release notes beside the update controls in both languages",
+    "tests/updates.spec.ts::names the CPU of this Mac on the version check and on the first download request",
+    "tests/updates.spec.ts::names the release notes page after the latest channel version reported by the update service",
+    "tests/updates.spec.ts::notifies once per newly discovered background update version and persists notifiedVersion across restarts",
+    "tests/updates.spec.ts::polls on Linux without the installation UUID, notifies once and leaves the download to the release page",
+    "tests/updates.spec.ts::rechecks the selected version before downloading, and preserves preparation failures for retry",
+    "tests/updates.spec.ts::stops polling and aborts an active request on shutdown",
+    "tests/windows-directory-installer.spec.ts::vendors the upstream directory transaction and only inserts the Desktop hooks"
+  ]
+}

@@ -105,6 +105,13 @@ jobs:
         shell: pwsh
         run: yarn build
 
+      - name: Check the specs against the recorded baseline
+        shell: pwsh
+        # The specs that assert the replaced product name, update endpoint and installer switches fail
+        # by design and are listed in .known-test-failures.json. A failure outside that list means a
+        # patch reached further than intended, or upstream changed behaviour under it.
+        run: node scripts/check-tests.mjs --desktop-root upstream/dsh-desktop-next
+
       - name: Package the application directory
         working-directory: upstream/dsh-desktop-next
         shell: pwsh
