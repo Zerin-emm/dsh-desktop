@@ -1,9 +1,13 @@
 /**
  * The caption stylesheet.
  *
- * Values follow the 2.0.18 frame caption: an opaque `bg-layer-1` strip, the identity centred with a
- * `bg-layer-1` popover above `0 12px 32px`, 26px icon buttons holding 14px/stroke-1.8 icons, and a
- * 190px menu of 32px rows under the restart and developer buttons.
+ * Values follow the 2.0.18 frame caption: an opaque strip, the identity centred over a popover above
+ * `0 12px 32px`, 26px icon buttons holding 14px/stroke-1.8 icons, and a 190px menu of 32px rows under
+ * the restart and developer buttons.
+ *
+ * Type sizes are 2.0.18's plus one pixel: that build set its whole interface at 13px, while Next's
+ * sidebar runs at 14px, so the caption's 13px product name read a notch smaller than the page it
+ * sits above. The 14px name, 12px version chip and 13px rows keep 2.0.18's spacing ratios.
  */
 
 const CSS = `
@@ -18,7 +22,13 @@ div:has(> [data-shell-overlay]) {
 }
 
 .dshDesktopFrameTitlebar {
-  --dsh-desktop-frame-fill: var(--dsw-alias-bg-layer-1, #f5f5f5);
+  /*
+   * 2.0.18 fills the strip with its own light layer, #f5f5f5, rather than the page background.
+   * Next resolves --dsw-alias-bg-layer-1 to pure white in the light theme, which left the caption
+   * brighter than the sidebar beside it. Mixing 4% black into bg-base lands on #f5f5f5 for the
+   * default theme and still tracks a customised one.
+   */
+  --dsh-desktop-frame-fill: color-mix(in srgb, var(--dsw-alias-bg-base, #ffffff) 96%, #000);
   position: fixed;
   z-index: 2147483647;
   top: 0;
@@ -32,13 +42,21 @@ div:has(> [data-shell-overlay]) {
   padding: 0 146px 0 8px;
   background: var(--dsh-desktop-frame-fill);
   color: var(--dsw-alias-label-primary, #202020);
-  font: 13px/1.2 var(--dsw-font-family, system-ui, sans-serif);
+  font: 14px/1.2 var(--dsw-font-family, system-ui, sans-serif);
   user-select: none;
   -webkit-app-region: drag;
 }
 
 .dshDesktopFrameTitlebar[data-material]:not([data-material='off']) {
   --dsh-desktop-frame-fill: color-mix(in srgb, var(--dsw-alias-bg-base, #ffffff) 54%, transparent);
+}
+
+/*
+ * The dark theme swaps bg-base for the page colour, which is darker than the layer 2.0.18 used
+ * (its own #232323). Next's bg-layer-1 is #232324 there, so the strip follows that instead.
+ */
+body[data-ds-dark-theme] .dshDesktopFrameTitlebar {
+  --dsh-desktop-frame-fill: var(--dsw-alias-bg-layer-1, #232323);
 }
 
 /*
@@ -61,7 +79,7 @@ div:has(> [data-shell-overlay]) {
 }
 
 .dshDesktopFrameProduct {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -81,7 +99,7 @@ div:has(> [data-shell-overlay]) {
   color: var(--dsw-alias-label-secondary, #606060);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   transition: background-color 120ms ease, color 120ms ease;
   -webkit-app-region: no-drag;
@@ -180,7 +198,7 @@ div:has(> [data-shell-overlay]) {
   color: var(--dsw-alias-label-primary, #202020);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: start;
   transition: background-color 120ms ease;
 }
@@ -232,12 +250,12 @@ div:has(> [data-shell-overlay]) {
   justify-content: space-between;
   gap: 12px;
   color: var(--dsw-alias-label-secondary, #606060);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .dshDesktopVersionPopoverHeader strong {
   color: var(--dsw-alias-label-primary, #202020);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -254,7 +272,7 @@ div:has(> [data-shell-overlay]) {
   color: var(--dsw-alias-label-primary, #202020);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   transition: background-color 120ms ease;
   -webkit-app-region: no-drag;
 }
@@ -281,7 +299,7 @@ div:has(> [data-shell-overlay]) {
 
 .dshDesktopVersionCheckError {
   color: var(--dsw-alias-state-error-primary, #d93025);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 `
