@@ -314,6 +314,27 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: pages
+
+      - name: Wait for the pages artifact to be indexed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `upload-pages-artifact` returns before the artifact shows up in the run's artifact list, and
+        # deploy-pages reads that list once and gives up when the name is missing. Poll until it is
+        # visible instead of racing it.
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 24); do
+            if gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+                --jq '.artifacts[].name' | grep -qx 'github-pages'; then
+              echo "github-pages artifact is visible after ${i} check(s)"
+              exit 0
+            fi
+            echo "waiting for the github-pages artifact (${i}/24)"
+            sleep 5
+          done
+          echo "the github-pages artifact never became visible" >&2
+          exit 1
+
       - id: deploy
         uses: actions/deploy-pages@v4
 
