@@ -369,7 +369,7 @@ jobs:
           sed -i 's/DSH NEXT/DSH Desktop/g; s/DSH-NEXT/DSH-Desktop/g' notes.md
           # Upstream's own download table lists its asset names with the -next suffix; this release
           # publishes five files under different names, so keeping that section only misleads readers.
-          awk '/^## 下载/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' notes.md > notes.clean
+          awk '/^## (下载|Downloads)/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' notes.md > notes.clean
           mv notes.clean notes.md
           sed -i "s/${{ needs.resolve.outputs.version }}-next/${{ needs.resolve.outputs.version }}/g" notes.md
           cat >> notes.md <<'EOF'
