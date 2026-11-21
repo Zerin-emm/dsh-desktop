@@ -34,9 +34,24 @@ clone tag  →  overlay/  →  scripts/rename.mjs  →  build  →  release + Pa
 | 版本号 | 上游 `2.0.24-next` → 本仓库 `2.0.24` |
 | appId | `com.<owner>.dsh.desktop` |
 
+## 测试
+
+上游的 `yarn test` 断言的是**上游产品的事实**：`DSH NEXT` 的对话框标题、官方更新端点的
+URL、`next` 频道的版本串、NSIS 安装器的启动参数。本项目故意改变了这些事实，所以这部分
+用例会失败，属于预期，不去修 —— 把它们改绿只是让测试给改动背书。
+
+数字：未改动的上游签出在本机跑是 **10 条失败**，全部平台绑定（codesign、macOS 授权、
+wasm sharp、Windows GPU 对话框、icon 同步）。改名并接入新更新源之后是 **27 条**，即同一批
+10 条加上 17 条钉住旧更新服务的断言。
+
+改动的回归保护不是这些 spec，而是 `scripts/rename.mjs`：23 条正则各带匹配数断言，上游
+任何一处锚点变了就 `exit 1`，构建当场停下。发布路径（`yarn build` → `package.ts dir` →
+`package-inno.mjs`）不跑 `yarn test`，也不跑 `yarn check`。
+
 ## 已知取舍
 
-- 只构建 Windows。
+- Windows 出 Inno Setup 安装包；macOS 出未签名 dmg（`xattr -cr` 后可用）；Linux 出
+  AppImage 与 deb。
 - 只跟进上游 `*-next` 发行版，跳过 `beta.*` 预发布。
 - `overlay/` 的顶栏是新增文件，上游改官方 UI 不会影响它；上游改动被 `rename.mjs` 锚定的
-  11 处字符串时才会失败，届时按报错修正锚点。
+  23 处字符串时才会失败，届时按报错修正锚点。
