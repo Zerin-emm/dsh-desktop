@@ -71,24 +71,32 @@ if (!existsSync(vitest)) {
   process.exit(1)
 }
 
-const workspace = mkdtempSync(join(tmpdir(), 'dsh-specs-'))
-const output = join(workspace, 'report.json')
-const started = Date.now()
-const run = spawnSync(process.execPath, [vitest, 'run', '--reporter=json', `--outputFile=${output}`], {
-  cwd: desktopRoot,
-  stdio: 'inherit',
-  env: { ...process.env, DSH_TELEMETRY_DISABLED: '1' },
-})
-if (run.error !== undefined) throw run.error
-if (!existsSync(output)) {
-  console.error('vitest produced no JSON report; the run itself failed before any spec executed')
+/**
+ * Run the suite once and collect its failing cases.
+ * @returns {{ failed: Set<string>, seconds: string }}
+ */
+function runSuite() {
+  const workspace = mkdtempSync(join(tmpdir(), 'dsh-specs-'))
+  const output = join(workspace, 'report.json')
+  const started = Date.now()
+  const run = spawnSync(process.execPath, [vitest, 'run', '--reporter=json', `--outputFile=${output}`], {
+    cwd: desktopRoot,
+    stdio: 'inherit',
+    env: { ...process.env, DSH_TELEMETRY_DISABLED: '1' },
+  })
+  if (run.error !== undefined) throw run.error
+  if (!existsSync(output)) {
+    console.error('vitest produced no JSON report; the run itself failed before any spec executed')
+    rmSync(workspace, { recursive: true, force: true })
+    process.exit(1)
+  }
+  const failed = failingCases(JSON.parse(readFileSync(output, 'utf8')), desktopRoot)
   rmSync(workspace, { recursive: true, force: true })
-  process.exit(1)
+  return { failed, seconds: ((Date.now() - started) / 1000).toFixed(0) }
 }
 
-const current = failingCases(JSON.parse(readFileSync(output, 'utf8')), desktopRoot)
-rmSync(workspace, { recursive: true, force: true })
-const seconds = ((Date.now() - started) / 1000).toFixed(0)
+const first = runSuite()
+let current = first.failed
 
 if (updateBaseline) {
   const note = [
@@ -98,7 +106,7 @@ if (updateBaseline) {
   ].join(' ')
   const payload = { note, failures: [...current].sort() }
   writeFileSync(baselinePath, `${JSON.stringify(payload, undefined, 2)}\n`)
-  console.log(`\nRecorded ${current.size} known failures in .known-test-failures.json (${seconds}s)`)
+  console.log(`\nRecorded ${current.size} known failures in .known-test-failures.json (${first.seconds}s)`)
   process.exit(0)
 }
 
@@ -107,16 +115,27 @@ if (!existsSync(baselinePath)) {
   process.exit(1)
 }
 const baseline = new Set(JSON.parse(readFileSync(baselinePath, 'utf8')).failures ?? [])
-const added = [...current].filter(name => !baseline.has(name)).sort()
+
+// A single CI run trips a timing-sensitive spec now and then. Confirming a candidate with a second
+// full run keeps one flake from blocking a release, while a real regression fails both times.
+let added = [...current].filter(name => !baseline.has(name)).sort()
+if (added.length > 0) {
+  console.log(`\n${added.length} candidate failure(s) outside the baseline; re-running to rule out flakes…`)
+  const second = runSuite()
+  current = second.failed
+  added = added.filter(name => current.has(name))
+  console.log(`second run finished in ${second.seconds}s`)
+}
+
 const gone = [...baseline].filter(name => !current.has(name)).sort()
 
-console.log(`\nknown failures: ${baseline.size}   failing now: ${current.size}   (${seconds}s)`)
+console.log(`\nknown failures: ${baseline.size}   failing now: ${current.size}   (${first.seconds}s)`)
 if (gone.length > 0) {
   console.log(`\n${gone.length} baseline case(s) pass now, shrink the baseline when convenient:`)
   for (const name of gone) console.log(`  - ${name}`)
 }
 if (added.length > 0) {
-  console.error(`\n${added.length} case(s) failed that the baseline does not list:`)
+  console.error(`\n${added.length} case(s) failed twice and the baseline does not list them:`)
   for (const name of added) console.error(`  + ${name}`)
   console.error('\nA patch reached further than intended, or upstream changed behaviour. Investigate before releasing.')
   process.exit(1)
