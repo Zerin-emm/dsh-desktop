@@ -10,7 +10,7 @@
  * sits above. The 14px name, 12px version chip and 13px rows keep 2.0.18's spacing ratios.
  */
 
-const CSS = `
+export const TITLEBAR_CSS = `
 /*
  * The page keeps no titlebar padding of its own: Next's Windows marker stays unset so the sidebar
  * keeps its 56px icon rail, and that marker is what AppFrame uses for padding-top. This rule
@@ -311,7 +311,7 @@ body[data-ds-dark-theme] .dshDesktopFrameTitlebar {
 export function installTitlebarStyles(): () => void {
   const style = document.createElement('style')
   style.dataset.plugin = 'dsh-desktop-titlebar'
-  style.textContent = CSS
+  style.textContent = TITLEBAR_CSS
   document.head.append(style)
   return () => style.remove()
 }
