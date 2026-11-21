@@ -93,6 +93,20 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 ; payload 已经过 electron-builder 与 verify 校验，任何额外排除都会破坏它的自洽性。
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; 更新前先清掉"解包出来的旧代码"。
+;
+; fuses 是 onlyLoadAppFromAsar=false，Electron 会优先加载 resources\app\ 目录、其次才是
+; app.asar。插件（如 dsh-purge）的"应用"就是把 asar 解包成 resources\app\ 再打补丁；这份解包
+; 目录不会被覆盖安装自动清掉，于是更新装完新 app.asar，实际跑的还是旧目录 —— 用户以为升级了。
+;
+; 下面这些路径都只可能是插件解包/备份产物，正常安装里不存在，删不到时 Inno 静默跳过。
+Type: filesandordirs; Name: "{app}\resources\app"
+Type: filesandordirs; Name: "{app}\resources\app.dshpurge-next"
+Type: filesandordirs; Name: "{app}\resources\app.dshpurge-next.unpacked"
+Type: files; Name: "{app}\resources\app.asar.purge-*.bak"
+Type: files; Name: "{app}\resources\app.asar.purge-handoff.json"
+
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
