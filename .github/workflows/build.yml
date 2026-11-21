@@ -103,10 +103,15 @@ jobs:
         # The root postinstall applies patches/ to the official packages.
         run: corepack yarn install --immutable
 
-      - name: Build
+      - name: Build the client and the community market plugin
         working-directory: upstream/dsh-desktop-next
         shell: pwsh
-        run: corepack yarn build
+        # The packaged Host imports dsh-community-market from its lib/, which only exists after the
+        # workspace build. The upstream root script runs that before packaging; this workflow calls
+        # the desktop package directly, so it has to happen here.
+        run: |
+          corepack yarn build
+          corepack yarn workspace dsh-community-market build
 
       - name: Check the specs against the recorded baseline
         shell: pwsh
@@ -205,9 +210,13 @@ jobs:
         # The root postinstall applies patches/ to the official packages.
         run: corepack yarn install --immutable
 
-      - name: Build
+      - name: Build the client and the community market plugin
         working-directory: upstream/dsh-desktop-next
-        run: corepack yarn build
+        # The packaged Host imports dsh-community-market from its lib/, which only exists after the
+        # workspace build.
+        run: |
+          corepack yarn build
+          corepack yarn workspace dsh-community-market build
 
       - name: Package the unsigned disk image
         working-directory: upstream/dsh-desktop-next
@@ -260,9 +269,13 @@ jobs:
         # The root postinstall applies patches/ to the official packages.
         run: corepack yarn install --immutable
 
-      - name: Build
+      - name: Build the client and the community market plugin
         working-directory: upstream/dsh-desktop-next
-        run: corepack yarn build
+        # The packaged Host imports dsh-community-market from its lib/, which only exists after the
+        # workspace build.
+        run: |
+          corepack yarn build
+          corepack yarn workspace dsh-community-market build
 
       - name: Package the AppImage and the Debian package
         working-directory: upstream/dsh-desktop-next
