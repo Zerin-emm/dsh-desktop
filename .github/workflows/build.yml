@@ -79,6 +79,9 @@ jobs:
         run: |
           git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" `
             "https://github.com/${{ env.UPSTREAM_REPO }}.git" upstream
+          # The pinned harness is a submodule and the payload step reads its primary-runtime manifest,
+          # which a plain --depth 1 clone leaves empty.
+          git -C upstream submodule update --init --recursive --depth 1
 
       - name: Apply the overlay
         shell: pwsh
@@ -98,12 +101,12 @@ jobs:
         working-directory: upstream
         shell: pwsh
         # The root postinstall applies patches/ to the official packages.
-        run: yarn install --immutable
+        run: corepack yarn install --immutable
 
       - name: Build
         working-directory: upstream/dsh-desktop-next
         shell: pwsh
-        run: yarn build
+        run: corepack yarn build
 
       - name: Check the specs against the recorded baseline
         shell: pwsh
@@ -122,7 +125,7 @@ jobs:
         # verifier over both. The archive is published for people who want no installer; the updater
         # never touches it, because the download URL names the Inno Setup file. The upstream NSIS
         # target and its own `yarn dist:win` entry point stay untouched and uncalled.
-        run: yarn dist:win-portable
+        run: corepack yarn dist:win-portable
 
       - name: Install Inno Setup
         shell: pwsh
@@ -182,7 +185,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Clone upstream at the tag
-        run: git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+        # The pinned harness is a submodule and the payload step reads its primary-runtime manifest,
+        # which a plain --depth 1 clone leaves empty.
+        run: |
+          git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+          git -C upstream submodule update --init --recursive --depth 1
 
       - name: Apply the overlay
         run: cp -R overlay/. upstream/
@@ -196,18 +203,18 @@ jobs:
       - name: Install
         working-directory: upstream
         # The root postinstall applies patches/ to the official packages.
-        run: yarn install --immutable
+        run: corepack yarn install --immutable
 
       - name: Build
         working-directory: upstream/dsh-desktop-next
-        run: yarn build
+        run: corepack yarn build
 
       - name: Package the unsigned disk image
         working-directory: upstream/dsh-desktop-next
         # `mac-smoke` needs no signing identity: it builds the app and the DMG, then verifies the
         # sealed payload, the fuses and the packaged Host boot. Gatekeeper clears it after
         # `xattr -cr /Applications/DSH\ Desktop.app`.
-        run: yarn dist:mac-smoke
+        run: corepack yarn dist:mac-smoke
 
       - name: Collect the disk image
         run: |
@@ -233,7 +240,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Clone upstream at the tag
-        run: git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+        # The pinned harness is a submodule and the payload step reads its primary-runtime manifest,
+        # which a plain --depth 1 clone leaves empty.
+        run: |
+          git clone --depth 1 --branch "${{ needs.resolve.outputs.tag }}" "https://github.com/${UPSTREAM_REPO}.git" upstream
+          git -C upstream submodule update --init --recursive --depth 1
 
       - name: Apply the overlay
         run: cp -R overlay/. upstream/
@@ -247,15 +258,15 @@ jobs:
       - name: Install
         working-directory: upstream
         # The root postinstall applies patches/ to the official packages.
-        run: yarn install --immutable
+        run: corepack yarn install --immutable
 
       - name: Build
         working-directory: upstream/dsh-desktop-next
-        run: yarn build
+        run: corepack yarn build
 
       - name: Package the AppImage and the Debian package
         working-directory: upstream/dsh-desktop-next
-        run: yarn dist:linux
+        run: corepack yarn dist:linux
 
       - name: Collect the packages
         run: |
