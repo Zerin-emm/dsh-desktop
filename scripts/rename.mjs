@@ -119,6 +119,24 @@ const EDITS = [
     replace: `win32: '${downloadMirror}/${repository}/releases/latest/download/DSH-Desktop-win-x64.exe'`,
   },
   {
+    file: 'dsh-plugin-desktop/src/update-download.ts',
+    label: 'macOS installer url',
+    // Left alone this kept pointing at the official endpoint, so a Mac user pressing download got
+    // the upstream package, whose bundle id differs and installs as a second application. The DMG
+    // here is unsigned and its in-app update cannot complete, but the link must still name this
+    // repository.
+    find: /darwin:\s*'https:\/\/www\.dshdesktop\.cn\/api\/downloads\/mac'/u,
+    replace: `darwin: '${downloadMirror}/${repository}/releases/latest/download/DSH-Desktop-mac-x64.dmg'`,
+  },
+  {
+    file: 'dsh-desktop-next/package.json',
+    label: 'package repository url',
+    // Metadata only: publish is null and nothing reads it at runtime, but it should not keep naming
+    // the upstream repository once the product identifies as something else.
+    find: /"url":\s*"git\+https:\/\/github\.com\/anywhere-labs\/deepseek-harness-desktop\.git"/u,
+    replace: `"url": "git+${repository}.git"`,
+  },
+  {
     file: 'dsh-desktop-next/package.json',
     label: 'start menu shortcut name',
     find: /"shortcutName":\s*"DSH NEXT"/u,
@@ -194,6 +212,13 @@ const EDITS = [
     label: 'package spec follows the application id',
     find: /expect\(next\.build\.appId\)\.toBe\('ai\.deepseek\.dsh\.desktop\.next'\)/u,
     replace: `expect(next.build.appId).toBe('com.${repo.split('/')[0].toLowerCase()}.dsh.desktop')`,
+  },
+  {
+    file: 'dsh-desktop-next/tests/package.spec.ts',
+    label: 'package spec follows the repository url',
+    // It compared against dsh-plugin-desktop's repository; the product now names its own.
+    find: /expect\(next\.repository\)\.toEqual\(\{ type: 'git', url: stable\.repository\.url, directory: 'dsh-desktop-next' \}\)/u,
+    replace: `expect(next.repository).toEqual({ type: 'git', url: 'git+${repository}.git', directory: 'dsh-desktop-next' })`,
   },
   {
     file: 'dsh-desktop-next/src/update-installer.ts',
@@ -323,7 +348,7 @@ const KEEP_PRODUCT_NAME = new Set([
  * scan that stopped at `src` left roughly two hundred upstream names in place, and the renamed code
  * then failed its own specs.
  */
-const SCAN_ROOTS = ['dsh-desktop-next/src', 'dsh-desktop-next/scripts', 'dsh-desktop-next/tests', 'dsh-plugin-desktop/src', 'dsh-plugin-desktop/scripts']
+const SCAN_ROOTS = ['dsh-desktop-next/src', 'dsh-desktop-next/scripts', 'dsh-desktop-next/tests', 'dsh-plugin-desktop/src', 'dsh-plugin-desktop/scripts', 'dsh-plugin-desktop/tests']
 
 /** Text files that may carry the product name. */
 const TEXT_EXTENSIONS = /\.(?:ts|tsx|mjs|js|json|html|yml|yaml)$/u
