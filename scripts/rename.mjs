@@ -229,6 +229,15 @@ const EDITS = [
     find: /spawn\(this\.prepared!\.path, \['--updated', '--force-run'\]/u,
     replace: "spawn(this.prepared!.path, ['/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '--updated']",
   },
+  {
+    file: 'dsh-plugin-desktop/src/pnpm.ts',
+    label: 'vendor a local plugin before pnpm links it',
+    // `pnpm add <dir>` records a link: dependency and junctions into the source directory, so
+    // deleting the source breaks the profile and every later reinstall rebuilds the broken link.
+    // Copying the directory into <profile>/vendor first keeps the junction inside the profile.
+    find: /return this\.startPlugin\(validatedArgv\(argv\), invokingDir, signal\)/u,
+    replace: 'return this.startPlugin(validatedArgv(vendorLocalPlugin(argv, this.bootstrap.activeProfileDir)), invokingDir, signal)',
+  },
 ]
 
 /** Edits that add a line instead of replacing one. */
@@ -246,6 +255,12 @@ const INSERTS = [
     // `ctx.slots.inject` is already an effect, so this is a plain call; `ctx.effect` takes a
     // zero-argument function and would reject the context parameter.
     text: '\n  installDesktopTitlebar(ctx)',
+  },
+  {
+    file: 'dsh-plugin-desktop/src/pnpm.ts',
+    label: 'local plugin vendoring import',
+    after: "import { withDesktopPnpmPolicy } from './pnpm-policy.ts'",
+    text: "\nimport { vendorLocalPlugin } from './local-plugin-store.ts'",
   },
 ]
 
