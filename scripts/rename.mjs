@@ -262,21 +262,6 @@ const INSERTS = [
     after: "import { withDesktopPnpmPolicy } from './pnpm-policy.ts'",
     text: "\nimport { vendorLocalPlugin } from './local-plugin-store.ts'",
   },
-  {
-    file: 'dsh-desktop-next/src/main.ts',
-    label: 'workspace integrity import',
-    after: "import { DATA_DIRECTORY_VARIABLE, dataDirectoryChange, dataDirectoryLocationFile, dataDirectoryLocationRoot, readDataDirectory, rememberDataDirectory, sameDirectory, validateDataDirectory } from './data-directory.ts'",
-    text: "\nimport { repairWorkspaceIntegrity } from './workspace-integrity.ts'",
-  },
-  {
-    file: 'dsh-desktop-next/src/main.ts',
-    label: 'repair workspace integrity at startup',
-    // The Windows sandbox leaves a Low integrity label on every workspace it grants, and switching
-    // to full access does not rewrite those SACLs. Rewrite them back to Medium once per launch so
-    // executables built in a workspace run at the caller's integrity outside DSH.
-    after: 'if (!await confirmDataDirectory()) return',
-    text: "\n  // Best-effort: clear the Low integrity labels DSH's sandbox leaves on its workspaces.\n  void repairWorkspaceIntegrity(home, message => runtime.diagnostics.append(message)).catch(() => {})",
-  },
 ]
 
 /**
